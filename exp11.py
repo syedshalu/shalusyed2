@@ -5,7 +5,7 @@ import plotly.express as px
 import re
 
 
-# Step -1: Page setup with CSS
+# Step -1: Page setup with CSS (Make sure to call st.set_page_config first)
 st.set_page_config(
     page_title="MyFeeds@ZOMATO.com",
     page_icon=":postbox:",
@@ -129,3 +129,57 @@ if option == "Feedback":
                 product_reviews = [r for r in st.session_state.db if r['prod'] == name]
                 if product_reviews:
                     for r in product_reviews:
+                        st.markdown(f'''
+                            <div class="review-box" style="border-color: {r['color']}; background-color: {r['color']}20;">
+                                <small><b>{r['email']}</b> <br> ({r['sent']})</small>
+                                <small>{"⭐" * r['rating']}</small> <br>
+                                <b><i>"{r['txt']}"</i></b>
+                            </div>
+                        ''', unsafe_allow_html=True)
+                else:
+                    st.caption("No reviews yet.")
+
+    st.divider()
+    st.subheader("Share Your Experience")
+    c1, c2 = st.columns(2)
+    with c1:
+        em = st.text_input("Email Address:")
+        pr = st.selectbox("Which item did you try?", ["--select--"] + list(st.session_state.p.keys()))
+        sr = st.select_slider("Rate the Item", options=[1, 2, 3, 4, 5], value=3)
+    with c2:
+        tx = st.text_area("Write your feedback here:", height=150)
+        if st.button("Submit Review", use_container_width=True):
+            if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", em):
+                st.error("Please enter a valid email address.")
+            elif pr == "--select--":
+                st.error("Please select a dish to submit your review.")
+            elif any(r for r in st.session_state.db if r['email'] == em and r['prod'] == pr):
+                st.warning("You have already submitted a review for this item.")
+            elif tx:
+                sentiment, color = analyse(tx)  # Analyzing sentiment once
+                st.session_state.p[pr]['ts'] += sr
+                st.session_state.p[pr]['c'] += 1
+                st.session_state.db.append({
+                    "email": em,
+                    "prod": pr,
+                    "txt": tx,
+                    "rating": sr,
+                    "sent": sentiment,
+                    "color": color,
+                    "time": time.time()
+                })
+                time.sleep(2)
+                st.success("Thank you for your feedback!")
+                st.rerun()
+
+# Step -4: Analytics Section
+elif option == "Analytics":
+    st.subheader("Performance Insights")
+    if not st.session_state.db:
+        st.info("No reviews submitted yet. Please share your feedback in the Feedback section.")
+    else:
+        df = pd.DataFrame(st.session_state.db)
+        c1, c2 = st.columns(2)
+        with c1:
+            fig1 = px.histogram(df, x="prod", color="sent", title="Sentiment Distribution by Item",
+                                category_orders={"sent": ["Positive☺
